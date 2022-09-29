@@ -735,7 +735,7 @@ class BaseSearchCV(MetaEstimatorMixin, BaseEstimator, metaclass=ABCMeta):
             best_index = results[f"rank_test_{refit_metric}"].argmin()
         return best_index
 
-    def fit(self, X, y=None, *, groups=None, **fit_params):
+    def fit(self, X, y=None, *, groups=None, scoring_sample_weight=None, **fit_params):
         """Run fit with all sets of parameters.
 
         Parameters
@@ -754,6 +754,9 @@ class BaseSearchCV(MetaEstimatorMixin, BaseEstimator, metaclass=ABCMeta):
             Group labels for the samples used while splitting the dataset into
             train/test set. Only used in conjunction with a "Group" :term:`cv`
             instance (e.g., :class:`~sklearn.model_selection.GroupKFold`).
+
+        scoring_sample_weight : array-like of sahpe (n_samples,), default=None
+            Individual weights for each sample when scoring.
 
         **fit_params : dict of str -> object
             Parameters passed to the `fit` method of the estimator.
@@ -792,6 +795,7 @@ class BaseSearchCV(MetaEstimatorMixin, BaseEstimator, metaclass=ABCMeta):
 
         fit_and_score_kwargs = dict(
             scorer=scorers,
+            scoring_sample_weight=scoring_sample_weight,
             fit_params=fit_params,
             return_train_score=self.return_train_score,
             return_n_test_samples=True,

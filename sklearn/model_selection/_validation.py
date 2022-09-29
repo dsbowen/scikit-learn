@@ -53,6 +53,7 @@ def cross_validate(
     *,
     groups=None,
     scoring=None,
+    scoring_sample_weight=None,
     cv=None,
     n_jobs=None,
     verbose=0,
@@ -100,6 +101,9 @@ def cross_validate(
         - a dictionary with metric names as keys and callables a values.
 
         See :ref:`multimetric_grid_search` for an example.
+
+    scoring_sample_weight : array-like of sahpe (n_samples,), default=None
+        Individual weights for each sample when scoring.
 
     cv : int, cross-validation generator or an iterable, default=None
         Determines the cross-validation splitting strategy.
@@ -274,6 +278,7 @@ def cross_validate(
             verbose,
             None,
             fit_params,
+            scoring_sample_weight=scoring_sample_weight,
             return_train_score=return_train_score,
             return_times=True,
             return_estimator=return_estimator,
@@ -385,6 +390,7 @@ def cross_val_score(
     *,
     groups=None,
     scoring=None,
+    scoring_sample_weight=None,
     cv=None,
     n_jobs=None,
     verbose=0,
@@ -518,6 +524,7 @@ def cross_val_score(
         y=y,
         groups=groups,
         scoring={"score": scorer},
+        scoring_sample_weight=scoring_sample_weight,
         cv=cv,
         n_jobs=n_jobs,
         verbose=verbose,
@@ -538,6 +545,7 @@ def _fit_and_score(
     verbose,
     parameters,
     fit_params,
+    scoring_sample_weight=None,
     return_train_score=False,
     return_parameters=False,
     return_n_test_samples=False,
@@ -591,6 +599,9 @@ def _fit_and_score(
 
     fit_params : dict or None
         Parameters that will be passed to ``estimator.fit``.
+
+    scoring_sample_weight : array-like of sahpe (n_samples,), default=None
+        Individual weights for each sample when scoring.
 
     return_train_score : bool, default=False
         Compute and return score on training set.
@@ -677,6 +688,9 @@ def _fit_and_score(
 
     X_train, y_train = _safe_split(estimator, X, y, train)
     X_test, y_test = _safe_split(estimator, X, y, test, train)
+    sample_weight_test = None
+    if scoring_sample_weight is not None:
+        sample_weight_test = _safe_indexing(scoring_sample_weight, test)
 
     result = {}
     try:
@@ -705,10 +719,10 @@ def _fit_and_score(
         result["fit_error"] = None
 
         fit_time = time.time() - start_time
-        test_scores = _score(estimator, X_test, y_test, scorer, error_score)
+        test_scores = _score(estimator, X_test, y_test, scorer, error_score, sample_weight_test)
         score_time = time.time() - start_time - fit_time
         if return_train_score:
-            train_scores = _score(estimator, X_train, y_train, scorer, error_score)
+            train_scores = _score(estimator, X_train, y_train, scorer, error_score, sample_weight_test)
 
     if verbose > 1:
         total_time = score_time + fit_time
@@ -750,7 +764,7 @@ def _fit_and_score(
     return result
 
 
-def _score(estimator, X_test, y_test, scorer, error_score="raise"):
+def _score(estimator, X_test, y_test, scorer, error_score="raise", sample_weight=None):
     """Compute the score(s) of an estimator on a given test set.
 
     Will return a dict of floats if `scorer` is a dict, otherwise a single
@@ -762,9 +776,14 @@ def _score(estimator, X_test, y_test, scorer, error_score="raise"):
 
     try:
         if y_test is None:
-            scores = scorer(estimator, X_test)
+            scorer_args = estimator, X_test
         else:
-            scores = scorer(estimator, X_test, y_test)
+            scorer_args = estimator, X_test, y_test
+        if sample_weight is None:
+            scorer_kwargs = {}
+        else:
+            scorer_kwargs = dict(sample_weight=sample_weight)
+        scores = scorer(*scorer_args, **scorer_kwargs)
     except Exception:
         if error_score == "raise":
             raise
@@ -1356,6 +1375,7 @@ def learning_curve(
     train_sizes=np.linspace(0.1, 1.0, 5),
     cv=None,
     scoring=None,
+    scoring_sample_weight=None,
     exploit_incremental_learning=False,
     n_jobs=None,
     pre_dispatch="all",
@@ -1431,6 +1451,9 @@ def learning_curve(
         A str (see model evaluation documentation) or
         a scorer callable object / function with signature
         ``scorer(estimator, X, y)``.
+
+    scoring_sample_weight : array-like of sahpe (n_samples,), default=None
+        Individual weights for each sample when scoring.
 
     exploit_incremental_learning : bool, default=False
         If the estimator supports incremental learning, this will be
@@ -1564,6 +1587,7 @@ def learning_curve(
                 train,
                 test,
                 verbose,
+                scoring_sample_weight=scoring_sample_weight,
                 parameters=None,
                 fit_params=fit_params,
                 return_train_score=True,
@@ -1722,6 +1746,7 @@ def validation_curve(
     groups=None,
     cv=None,
     scoring=None,
+    scoring_sample_weight=None,
     n_jobs=None,
     pre_dispatch="all",
     verbose=0,
@@ -1788,6 +1813,9 @@ def validation_curve(
         a scorer callable object / function with signature
         ``scorer(estimator, X, y)``.
 
+    scoring_sample_weight : array-like of sahpe (n_samples,), default=None
+        Individual weights for each sample when scoring.
+
     n_jobs : int, default=None
         Number of jobs to run in parallel. Training the estimator and computing
         the score are parallelized over the combinations of each parameter
@@ -1843,6 +1871,7 @@ def validation_curve(
             train,
             test,
             verbose,
+            scoring_sample_weight=scoring_sample_weight,
             parameters={param_name: v},
             fit_params=fit_params,
             return_train_score=True,
